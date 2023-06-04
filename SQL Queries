@@ -1,0 +1,118 @@
+#Number of jobs reviewed: Amount of jobs reviewed over time.
+#Your task: Calculate the number of jobs reviewed per hour per day for November 2020?
+
+select ds, round(count(job_id)*3600/sum(time_spent),2) as throughput
+from sql_project_1
+where event in ('transfer','decision')
+and ds BETWEEN '2022-12-27' AND '2023-02-05'
+GROUP BY ds;
+
+#Throughput: It is the no. of events happening per second.
+#Your task: Let’s say the above metric is called throughput. Calculate 7 day rolling average of throughput? For throughput, do you prefer daily metric or 7-day rolling and why?
+
+WITH cte AS (
+  SELECT 
+    ds, 
+    round(1.0 * count(job_id) * 3600 / sum(time_spent), 2) AS throughput
+  FROM  sql_project_1
+  WHERE event in ('transfer', 'decision')
+  GROUP BY ds
+)
+SELECT 
+  ds,
+  AVG(throughput) OVER (ORDER BY ds ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS rolling_average_throughput
+FROM cte;
+
+#Percentage share of each language: Share of each language for different contents.
+#Your task: Calculate the percentage share of each language in the last 30 days?
+
+SELECT 
+  language,
+  ROUND(SUM(CASE WHEN ds >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN time_spent ELSE 0 END) / 
+        SUM(time_spent) * 100, 2) AS share
+FROM sql_project_1
+GROUP BY language;
+
+#Duplicate rows: Rows that have the same value present in them.
+#Your task: Let’s say you see some duplicate rows in the data. How will you display duplicates from the table?
+
+SELECT ds, job_id, actor_id, event, language, time_spent, org, COUNT(*)
+FROM sql_project_1
+GROUP BY ds, job_id, actor_id, event, language, time_spent, org
+HAVING COUNT(*) > 1;
+
+#Task: 2
+
+#User Engagement: To measure the activeness of a user. Measuring if the user finds quality in a product/service.
+#Your task: Calculate the weekly user engagement?
+
+WITH user_events AS (
+  SELECT
+    user_id,
+    event_name,
+    occured_at
+  FROM
+    table_2_events
+)
+SELECT
+  user_id,
+  COUNT(event_name) AS total_events,
+  AVG(CASE WHEN event_name = 'login' THEN 1 ELSE 0 END) AS login_ratio,
+  AVG(CASE WHEN event_name IN ('home_page', 'like_message', 'send_message', 'view_inbox') THEN 1 ELSE 0 END) AS active_ratio
+FROM
+  table_2_events
+GROUP BY
+  user_id
+User Growth: Amount of users growing over time for a product.
+
+#Your task: Calculate the user growth for product?
+
+SELECT 
+  t1.month, 
+  t1.user_count, 
+  IFNULL(t2.user_count, 1) / t1.user_count AS user_growth
+FROM 
+  (
+    SELECT 
+      DATE_FORMAT(created_at, '%Y-%m') AS month, 
+      COUNT(*) AS user_count
+    FROM user_data
+    GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+  ) t1
+  LEFT JOIN 
+  (
+    SELECT 
+      DATE_FORMAT(created_at, '%Y-%m') AS month, 
+      COUNT(*) AS user_count
+    FROM user_data
+    GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+  ) t2
+  ON t1.month = 
+    DATE_ADD(t2.month, INTERVAL 1 MONTH)
+
+
+#Weekly Engagement: To measure the activeness of a user. Measuring if the user finds quality in a product/service weekly.
+#Your task: Calculate the weekly engagement per device?
+
+SELECT 
+  device, 
+  WEEK(occurred_at) AS week, 
+  COUNT(DISTINCT user_id) AS unique_users,
+  SUM(CASE WHEN event_name = 'like_message' THEN 1 ELSE 0 END) AS like_message_count,
+  SUM(CASE WHEN event_name = 'send_message' THEN 1 ELSE 0 END) AS send_message_count,
+  SUM(CASE WHEN event_name = 'home_page' THEN 1 ELSE 0 END) AS home_page_count,
+  SUM(CASE WHEN event_name = 'view_inbox' THEN 1 ELSE 0 END) AS view_inbox_count
+FROM 
+  table_2_events
+GROUP BY 
+  device, WEEK(occurred_at)
+  
+#Email Engagement: Users engaging with the email service.
+#Your task: Calculate the email engagement metrics?
+
+SELECT 
+    COUNT(DISTINCT user_id) AS total_engaged_users, 
+    COUNT(*) AS total_engagements, 
+    COUNT(*) / COUNT(DISTINCT user_id) AS engagements_per_user
+FROM email_events;
+
